@@ -15,10 +15,10 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('user_id');
             $table->string('nombre');
-            $table->string('telefono', 15)->nullable();
-            $table->string('direccion')->nullable();
-            $table->string('area')->nullable();
+            $table->string('telefono', 15); // Ahora obligatorio
+            $table->string('direccion')->nullable(); // Opcional
             $table->string('rol')->default('admin'); // Nuevo campo para sincronizar el rol
+            $table->string('email')->unique(); // Nuevo campo para email de admin
             $table->foreign('user_id')->references('id')->on('users');
             $table->timestamps();
         });

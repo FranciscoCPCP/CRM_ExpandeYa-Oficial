@@ -18,3 +18,6 @@ Route::put('/clientes/{id}/rol', [ClienteController::class, 'updateRol']);
 
 // Endpoint para sincronización desde AuthService
 Route::post('/clientes/sync', [ClienteController::class, 'syncFromAuth']);
+
+// Endpoint para exponer el ubigeo completo
+Route::get('/ubigeo', [ClienteController::class, 'ubigeo']);

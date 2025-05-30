@@ -18,6 +18,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange }) => 
   // Navigation items with their icons and labels
   const navItems = [
     { id: 'citas', label: 'Citas', icon: <Calendar /> },
+    { id: 'admins', label: 'Administradores', icon: <Users /> },
     { id: 'clientes', label: 'Clientes', icon: <Users /> },
     { id: 'servicios', label: 'Servicios', icon: <Package /> },
     { id: 'pagos', label: 'Pagos', icon: <CreditCard /> },

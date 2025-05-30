@@ -18,7 +18,13 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->string('telefono', 15); // Ahora obligatorio
             $table->string('direccion'); // Ahora obligatorio
-            $table->string('razon_social')->nullable(); // Agregado como nullable
+            $table->string('tipo_cliente'); // profesional, negocio, emprendimiento
+            $table->string('actividad')->nullable(); // a qué se dedica (profesional)
+            $table->string('nombre_negocio')->nullable(); // nombre de empresa/negocio
+            $table->string('idea_emprendimiento')->nullable(); // idea de emprendimiento
+            $table->string('region');
+            $table->string('distrito');
+            $table->string('provincia');
             $table->date('fecha_nacimiento')->nullable();
             $table->timestamp('fecha_registro')->useCurrent();
             $table->string('rol')->default('cliente'); // Nuevo campo para sincronizar el rol

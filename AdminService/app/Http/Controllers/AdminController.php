@@ -6,6 +6,7 @@ use App\Models\Admin;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Auth;
 
 class AdminController extends Controller
 {
@@ -21,9 +22,9 @@ class AdminController extends Controller
         $validated = $request->validate([
             'user_id' => 'required|integer',
             'nombre' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:admins,email',
             'telefono' => 'required|string|max:15',
-            'direccion' => 'required|string|max:255',
-            'area' => 'required|string|max:255',
+            'direccion' => 'nullable|string|max:255',
             'rol' => 'sometimes|string|max:20',
         ]);
         $admin = Admin::create($validated);
@@ -43,10 +44,10 @@ class AdminController extends Controller
         $admin = Admin::findOrFail($id);
         $validated = $request->validate([
             'nombre' => 'sometimes|required|string|max:255',
-            'telefono' => 'nullable|string|max:15',
+            'email' => 'sometimes|required|email|max:255|unique:admins,email,' . $id,
+            'telefono' => 'sometimes|required|string|max:15',
             'direccion' => 'nullable|string|max:255',
-            'area' => 'nullable|string|max:255',
-            'estado' => 'nullable|string|max:50',
+            'rol' => 'sometimes|string|max:20',
         ]);
         $admin->update($validated);
         return response()->json($admin);
@@ -60,17 +61,16 @@ class AdminController extends Controller
             'nombre' => 'required|string|max:255',
             'email' => 'required|email|max:255',
             'telefono' => 'required|string|max:15',
-            'direccion' => 'required|string|max:255',
-            'area' => 'required|string|max:255',
+            'direccion' => 'nullable|string|max:255',
             'rol' => 'sometimes|string|max:20',
         ]);
         $admin = Admin::updateOrCreate(
             ['user_id' => $validated['user_id']],
             [
                 'nombre' => $validated['nombre'],
+                'email' => $validated['email'],
                 'telefono' => $validated['telefono'],
                 'direccion' => $validated['direccion'],
-                'area' => $validated['area'],
                 'rol' => $validated['rol'] ?? 'admin',
             ]
         );

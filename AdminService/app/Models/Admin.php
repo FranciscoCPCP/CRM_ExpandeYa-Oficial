@@ -9,9 +9,9 @@ class Admin extends Model
     protected $fillable = [
         'user_id',
         'nombre',
+        'email',
         'telefono',
         'direccion',
-        'area',
-        'rol', // Nuevo campo para sincronizar el rol
+        'rol',
     ];
 }

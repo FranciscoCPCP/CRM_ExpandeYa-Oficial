@@ -60,7 +60,7 @@ function App() {
   }
 
   // Redirección según rol
-  if (user && user.rol === 'admin') {
+  if (user && (user.rol === 'admin' || user.rol === 'superadmin')) {
     return <MainLayout />;
   }
   if (user && user.rol === 'cliente') {

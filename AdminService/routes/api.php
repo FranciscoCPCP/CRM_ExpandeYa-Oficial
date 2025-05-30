@@ -9,11 +9,15 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 // Endpoints CRUD para administradores
-Route::get('/administrador', [AdminController::class, 'index']);
-Route::post('/administrador', [AdminController::class, 'store']);
-Route::get('/administrador/{id}', [AdminController::class, 'show']);
-Route::put('/administrador/{id}', [AdminController::class, 'update']);
-//Route::delete('/administrador/{id}', [AdminController::class, 'destroy']);
-
+Route::middleware(['auth:api', 'admin'])->group(function () {
+    Route::get('/administrador', [AdminController::class, 'index']);
+    Route::post('/administrador', [AdminController::class, 'store']);
+    Route::get('/administrador/{id}', [AdminController::class, 'show']);
+    // El update solo para superadmin
+});
+Route::middleware(['auth:api', 'superadmin'])->group(function () {
+    Route::put('/administrador/{id}', [AdminController::class, 'update']);
+    //Route::delete('/administrador/{id}', [AdminController::class, 'destroy']);
+});
 // Endpoint para sincronización desde AuthService
 Route::post('/admins/sync', [AdminController::class, 'syncFromAuth']);

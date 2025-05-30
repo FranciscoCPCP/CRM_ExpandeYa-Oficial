@@ -8,6 +8,7 @@ import Pagos from '../pages/Pagos';
 import Tickets from '../pages/Tickets';
 import Chatbot from '../pages/Chatbot';
 import Reportes from '../pages/Reportes';
+import Admins from '../pages/Admins';
 
 const MainLayout: React.FC = () => {
   const [activeSection, setActiveSection] = useState('citas');
@@ -19,6 +20,8 @@ const MainLayout: React.FC = () => {
         return <Citas />;
       case 'clientes':
         return <Clientes />;
+      case 'admins':
+        return <Admins />;
       case 'servicios':
         return <Servicios />;
       case 'pagos':

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Cliente;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use App\Helpers\UbigeoPeru;
 
 class ClienteController extends Controller
 {
@@ -21,11 +22,21 @@ class ClienteController extends Controller
             'nombre' => 'required|string|max:255',
             'email' => 'required|email|max:255|unique:clientes,email',
             'telefono' => 'required|string|max:15',
-            'direccion' => 'required|string|max:255',
-            'razon_social' => 'nullable|string|max:255',
-            'fecha_nacimiento' => 'nullable|date',
-            'rol' => 'sometimes|string|max:20',
+            'direccion' => 'nullable|string|max:255',
+            'region' => 'required|string|max:100',
+            'distrito' => 'required|string|max:100',
+            'provincia' => 'required|string|max:100',
+            'tipo_cliente' => 'required|in:profesional,negocio,emprendimiento',
+            'actividad' => 'nullable|string|max:255',
+            'nombre_negocio' => 'nullable|string|max:255',
+            'idea_emprendimiento' => 'nullable|string|max:255',
+            'fecha_nacimiento' => 'required|date|before:-18 years',
+            'rol' => 'sometimes|string|max:20'
         ]);
+        // Validar ubigeo Perú
+        if (!UbigeoPeru::isValid($validated['region'], $validated['provincia'], $validated['distrito'])) {
+            return response()->json(['error' => 'Ubicación (región/provincia/distrito) no válida para Perú'], 422);
+        }
         $validated['fecha_registro'] = now();
         $cliente = Cliente::create($validated);
         return response()->json($cliente, 201);
@@ -47,8 +58,19 @@ class ClienteController extends Controller
             'email' => 'sometimes|required|email|max:255|unique:clientes,email,' . $id,
             'telefono' => 'sometimes|required|string|max:15',
             'direccion' => 'nullable|string|max:255',
+            'region' => 'required|string|max:100',
+            'distrito' => 'required|string|max:100',
+            'provincia' => 'required|string|max:100',
+            'tipo_cliente' => 'required|in:profesional,negocio,emprendimiento',
+            'actividad' => 'nullable|string|max:255',
+            'nombre_negocio' => 'nullable|string|max:255',
+            'idea_emprendimiento' => 'nullable|string|max:255',
             'fecha_nacimiento' => 'nullable|date',
+            'rol' => 'sometimes|string|max:20'
         ]);
+        if (!UbigeoPeru::isValid($validated['region'], $validated['provincia'], $validated['distrito'])) {
+            return response()->json(['error' => 'Ubicación (región/provincia/distrito) no válida para Perú'], 422);
+        }
         $cliente->update($validated);
         return response()->json($cliente);
     }
@@ -73,21 +95,39 @@ class ClienteController extends Controller
     {
         $validated = $request->validate([
             'user_id' => 'required|integer',
-            'nombre' => 'required|string|max:255', // Cambiado de 'name' a 'nombre'
+            'nombre' => 'required|string|max:255',
             'email' => 'required|email|max:255',
             'telefono' => 'required|string|max:15',
-            'direccion' => 'required|string|max:255',
-            'razon_social' => 'nullable|string|max:255',
-            'rol' => 'sometimes|string|max:20',
+            'direccion' => 'nullable|string|max:255',
+            'region' => 'required|string|max:100',
+            'distrito' => 'required|string|max:100',
+            'provincia' => 'required|string|max:100',
+            'tipo_cliente' => 'required|in:profesional,negocio,emprendimiento',
+            'actividad' => 'nullable|string|max:255',
+            'nombre_negocio' => 'nullable|string|max:255',
+            'idea_emprendimiento' => 'nullable|string|max:255',
+            'fecha_nacimiento' => 'nullable|date',
+            'rol' => 'sometimes|string|max:20'
         ]);
+        if (!UbigeoPeru::isValid($validated['region'], $validated['provincia'], $validated['distrito'])) {
+            return response()->json(['error' => 'Ubicación (región/provincia/distrito) no válida para Perú'], 422);
+        }
+        $validated['fecha_registro'] = now();
         $cliente = Cliente::updateOrCreate(
             ['user_id' => $validated['user_id']],
             [
                 'nombre' => $validated['nombre'],
                 'email' => $validated['email'],
                 'telefono' => $validated['telefono'],
-                'direccion' => $validated['direccion'],
-                'razon_social' => $validated['razon_social'] ?? null,
+                'direccion' => $validated['direccion'] ?? null,
+                'tipo_cliente' => $validated['tipo_cliente'],
+                'actividad' => $validated['actividad'] ?? null,
+                'nombre_negocio' => $validated['nombre_negocio'] ?? null,
+                'idea_emprendimiento' => $validated['idea_emprendimiento'] ?? null,
+                'region' => $validated['region'],
+                'distrito' => $validated['distrito'],
+                'provincia' => $validated['provincia'],
+                'fecha_nacimiento' => $validated['fecha_nacimiento'] ?? null,
                 'rol' => $validated['rol'] ?? 'cliente',
                 'fecha_registro' => now(),
             ]
@@ -114,5 +154,11 @@ class ClienteController extends Controller
             // Manejo de error opcional
         }
         return response()->json($cliente);
+    }
+
+    // Endpoint para exponer el ubigeo completo a frontend
+    public function ubigeo()
+    {
+        return response()->json(UbigeoPeru::$data);
     }
 }
