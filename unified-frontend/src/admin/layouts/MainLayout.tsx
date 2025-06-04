@@ -1,0 +1,75 @@
+import React, { useEffect, useState } from 'react';
+import Header from '../components/Header';
+import Sidebar from '../components/Sidebar';
+import Citas from '../pages/Citas';
+import Clientes from '../pages/Clientes';
+import Servicios from '../pages/Servicios';
+import Pagos from '../pages/Pagos';
+import Tickets from '../pages/Tickets';
+import Chatbot from '../pages/Chatbot';
+import Reportes from '../pages/Reportes';
+import Admins from '../pages/Admins';
+
+const MainLayout: React.FC = () => {
+  const [activeSection, setActiveSection] = useState('citas');
+  const [user, setUser] = useState<any>(() => {
+    const u = localStorage.getItem('user');
+    if (!u) return null;
+    try {
+      const parsed = JSON.parse(u);
+      return { ...parsed, rol: parsed.rol || parsed.role || '' };
+    } catch {
+      return null;
+    }
+  });
+
+  // Cerrar sesión
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.reload();
+  };
+
+  // Editar perfil (placeholder)
+  const handleEditProfile = () => {
+    alert('Funcionalidad de editar perfil próximamente.');
+  };
+
+  // Function to render the appropriate component based on the active section
+  const renderContent = () => {
+    switch (activeSection) {
+      case 'citas':
+        return <Citas />;
+      case 'clientes':
+        return <Clientes />;
+      case 'admins':
+        return <Admins />;
+      case 'servicios':
+        return <Servicios />;
+      case 'pagos':
+        return <Pagos />;
+      case 'tickets':
+        return <Tickets />;
+      case 'chatbot':
+        return <Chatbot />;
+      case 'reportes':
+        return <Reportes />;
+      default:
+        return <div>Sección no encontrada</div>;
+    }
+  };
+
+  return (
+    <div className="flex flex-col min-h-screen bg-gray-50">
+      <Header user={user} onLogout={handleLogout} onEditProfile={handleEditProfile} />
+      <div className="flex flex-1 pt-14">
+        <Sidebar activeSection={activeSection} onSectionChange={setActiveSection} />
+        <main className="ml-48 flex-1 p-6 overflow-auto">
+          {renderContent()}
+        </main>
+      </div>
+    </div>
+  );
+};
+
+export default MainLayout;
