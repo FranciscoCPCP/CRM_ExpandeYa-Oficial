@@ -17,11 +17,11 @@ return new class extends Migration
             $table->string('nombre');
             $table->string('email')->unique();
             $table->string('telefono', 15); // Ahora obligatorio
-            $table->string('direccion'); // Ahora obligatorio
+            $table->string('direccion')->nullable(); // Ahora opcional
             $table->string('tipo_cliente'); // profesional, negocio, emprendimiento
-            $table->string('actividad')->nullable(); // a qué se dedica (profesional)
-            $table->string('nombre_negocio')->nullable(); // nombre de empresa/negocio
-            $table->string('idea_emprendimiento')->nullable(); // idea de emprendimiento
+            $table->string('actividad')->nullable(); // ahora opcional
+            $table->string('nombre_negocio')->nullable(); // ahora opcional
+            $table->string('idea_emprendimiento')->nullable(); // ahora opcional
             $table->string('region');
             $table->string('distrito');
             $table->string('provincia');

@@ -13,17 +13,14 @@ return new class extends Migration
     {
         Schema::create('servicios', function (Blueprint $table) {
             $table->id();
-            $table->string('nombre');
-            $table->text('descripcion')->nullable();
+            $table->string('nombre')->unique();
+            $table->text('descripcion');
             $table->decimal('precio', 10, 2)->nullable();
-            $table->enum('estado', ['activo', 'inactivo'])->default('activo');
-            $table->enum('tipo', ['servicio', 'paquete'])->default('servicio');
-            $table->string('categoria')->nullable();
-            $table->string('subdominio')->nullable();
-            $table->enum('estado_proyecto', ['en proceso', 'revisión', 'entregado', 'pausado', 'bloqueado'])->default('en proceso');
+            $table->boolean('precio_variable');
+            $table->enum('estado', ['activo', 'suspendido']);
+            $table->string('categoria'); // Ej: Diseño gráfico
+            $table->string('subcategoria'); // Ej: Branding, Ilustración, etc.
             $table->uuid('uuid')->unique();
-            // Relación muchos a muchos para servicios en un paquete
-            $table->json('servicios_incluidos')->nullable(); // IDs de servicios incluidos en el paquete
             $table->timestamps();
         });
     }

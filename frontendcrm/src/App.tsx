@@ -3,35 +3,20 @@ import MainLayout from './layouts/MainLayout';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
-import AdminCreatePage from './pages/AdminCreatePage';
-
-// Paneles de ejemplo (puedes reemplazar por componentes reales luego)
-const ClientePanel = ({ user }: { user: any }) => {
-  return (
-    <div className="p-8 min-h-screen bg-gradient-to-br from-blue-100 to-indigo-200 flex flex-col items-center justify-center">
-      <div className="bg-white shadow-lg rounded-lg p-8 w-full max-w-2xl">
-        <h1 className="text-2xl font-bold mb-4 text-indigo-700">Bienvenido, {user.name} (Cliente)</h1>
-        <ul className="list-disc ml-6 mb-4 text-gray-700">
-          <li className="mb-2">Editar perfil</li>
-          <li className="mb-2">Crear paquetes (combinar servicios)</li>
-          <li className="mb-2">Chatbot</li>
-          <li className="mb-2">Ver y usar tickets de soporte</li>
-          <li className="mb-2">Ver reportes y pagos</li>
-          <li className="mb-2">Acceso a servicios contratados</li>
-        </ul>
-        <div className="flex gap-4 mt-6">
-          <button className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition">Ir a mi perfil</button>
-          <button className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition">Ver mis tickets</button>
-          <button className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition">Servicios</button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 function App() {
-  const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<any>(null);
+  // Leer token y user desde localStorage al iniciar la app
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
+  const [user, setUser] = useState<any>(() => {
+    const u = localStorage.getItem('user');
+    if (!u) return null;
+    try {
+      const parsed = JSON.parse(u);
+      return { ...parsed, rol: parsed.rol || parsed.role || '' };
+    } catch {
+      return null;
+    }
+  });
   const [showRegister, setShowRegister] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
 
@@ -50,8 +35,20 @@ function App() {
     return (
       <LoginPage
         onLoginSuccess={(t, u) => {
+          const userWithRol = {
+            ...u,
+            rol: u.rol || u.role || '',
+          };
+          if (userWithRol.rol === 'cliente') {
+            if (t) localStorage.setItem('token', t);
+            if (u) localStorage.setItem('user', JSON.stringify(userWithRol));
+            window.location.href = 'http://localhost:5174';
+            return null; // Evita renderizar mensaje de error
+          }
           setToken(t);
-          setUser(u);
+          setUser(userWithRol);
+          if (t) localStorage.setItem('token', t);
+          if (u) localStorage.setItem('user', JSON.stringify(userWithRol));
         }}
         onGoToRegister={() => setShowRegister(true)}
         onGoToForgot={() => setShowForgot(true)}
@@ -63,11 +60,22 @@ function App() {
   if (user && (user.rol === 'admin' || user.rol === 'superadmin')) {
     return <MainLayout />;
   }
-  if (user && user.rol === 'cliente') {
-    return <ClientePanel user={user} />;
-  }
   // Si el usuario no tiene rol válido, mostrar mensaje o redirigir
-  return <div className="flex items-center justify-center min-h-screen text-red-600 font-bold">Usuario sin rol válido</div>;
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen text-red-600 font-bold gap-4">
+      <span>Usuario sin rol válido</span>
+      <button
+        className="bg-primary-orange text-white px-4 py-2 rounded hover:bg-primary-orange/90 transition-colors shadow"
+        onClick={() => {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.reload();
+        }}
+      >
+        Volver al Login
+      </button>
+    </div>
+  );
 }
 
 export default App;

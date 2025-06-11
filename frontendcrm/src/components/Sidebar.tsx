@@ -21,6 +21,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange }) => 
     { id: 'admins', label: 'Administradores', icon: <Users /> },
     { id: 'clientes', label: 'Clientes', icon: <Users /> },
     { id: 'servicios', label: 'Servicios', icon: <Package /> },
+    { id: 'proyectos', label: 'Proyectos', icon: <Package /> },
     { id: 'pagos', label: 'Pagos', icon: <CreditCard /> },
     { id: 'tickets', label: 'Tickets', icon: <TicketCheck /> },
     { id: 'chatbot', label: 'Chatbot', icon: <MessageSquare /> },

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { User, Search, PlusCircle } from 'lucide-react';
 import { API_URLS } from '../utils/api';
-import ClienteRegisterForm from './ClienteRegisterForm';
+import ClienteRegisterForm from './ClientesRegisterForm';
 
 const Clientes: React.FC = () => {
   const [clientes, setClientes] = useState<any[]>([]);
@@ -11,6 +11,7 @@ const Clientes: React.FC = () => {
   const [ubigeo, setUbigeo] = useState<any[]>([]);
   const [ubigeoLoading, setUbigeoLoading] = useState(true);
   const [ubigeoError, setUbigeoError] = useState('');
+  const [editCliente, setEditCliente] = useState<any | null>(null);
 
   useEffect(() => {
     fetch(API_URLS.clientes)
@@ -42,7 +43,7 @@ const Clientes: React.FC = () => {
         <h1 className="text-2xl font-bold text-gray-800">Clientes</h1>
         <button
           className="flex items-center gap-2 bg-primary-orange text-white px-4 py-2 rounded-lg hover:bg-primary-orange/90 transition-colors shadow"
-          onClick={() => setShowForm(true)}
+          onClick={() => { setShowForm(true); setEditCliente(null); }}
         >
           <PlusCircle size={18} />
           <span>Nuevo Cliente</span>
@@ -52,7 +53,7 @@ const Clientes: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl relative animate-fade-in">
             <ClienteRegisterForm
-              onSuccess={() => { setShowForm(false); setLoading(true); fetch(API_URLS.clientes)
+              onSuccess={() => { setShowForm(false); setEditCliente(null); setLoading(true); fetch(API_URLS.clientes)
                 .then(res => res.json())
                 .then(data => {
                   if (Array.isArray(data)) setClientes(data);
@@ -64,8 +65,9 @@ const Clientes: React.FC = () => {
               ubigeo={ubigeo}
               ubigeoLoading={ubigeoLoading}
               ubigeoError={ubigeoError}
+              cliente={editCliente} // <-- Pasa el cliente real si es edición
             />
-            <button className="absolute top-2 right-2 text-gray-400 hover:text-primary-orange text-xl" onClick={() => setShowForm(false)}>&times;</button>
+            <button className="absolute top-2 right-2 text-gray-400 hover:text-primary-orange text-xl" onClick={() => { setShowForm(false); setEditCliente(null); }}>&times;</button>
           </div>
         </div>
       )}
@@ -179,7 +181,12 @@ const Clientes: React.FC = () => {
                       <div className="text-sm text-gray-500">{cliente.fecha_registro ? cliente.fecha_registro : '-'}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button className="text-primary-blue hover:text-primary-orange">Editar</button>
+                      <button
+                        className="text-primary-orange hover:underline mr-2"
+                        onClick={() => { setEditCliente(cliente); setShowForm(true); }}
+                      >
+                        Editar
+                      </button>
                     </td>
                   </tr>
                 ))}

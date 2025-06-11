@@ -10,15 +10,37 @@ use Illuminate\Support\Facades\Auth;
 
 class AdminController extends Controller
 {
-    // Listar todos los administradores
+    // Listar todos los administradores (solo para admins normales, excluye superadmin)
     public function index()
     {
-        return response()->json(Admin::all());
+        try {
+            $user = \Tymon\JWTAuth\Facades\JWTAuth::parseToken()->authenticate();
+        } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
+            return response()->json(['error' => 'Token expirado'], 401);
+        } catch (\Tymon\JWTAuth\Exceptions\TokenInvalidException $e) {
+            return response()->json(['error' => 'Token inválido'], 401);
+        } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
+            return response()->json(['error' => 'Token no proporcionado'], 401);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error de autenticación'], 401);
+        }
+        // Si es superadmin, ve todos
+        if (($user->rol ?? $user->role ?? null) === 'superadmin') {
+            return response()->json(Admin::all());
+        }
+        // Si es admin normal, excluye superadmin
+        $admins = Admin::where('rol', '!=', 'superadmin')->get();
+        return response()->json($admins);
     }
 
     // Crear un nuevo administrador
     public function store(Request $request)
     {
+        $user = \Tymon\JWTAuth\Facades\JWTAuth::parseToken()->authenticate();
+        if (($user->rol ?? $user->role ?? null) !== 'superadmin') {
+            return response()->json(['error' => 'No autorizado. Solo el superadmin puede crear administradores.'], 403);
+        }
+
         $validated = $request->validate([
             'user_id' => 'required|integer',
             'nombre' => 'required|string|max:255',
@@ -41,6 +63,11 @@ class AdminController extends Controller
     // Actualizar un administrador
     public function update(Request $request, $id)
     {
+        $user = \Tymon\JWTAuth\Facades\JWTAuth::parseToken()->authenticate();
+        if (($user->rol ?? $user->role ?? null) !== 'superadmin') {
+            return response()->json(['error' => 'No autorizado. Solo el superadmin puede actualizar administradores.'], 403);
+        }
+
         $admin = Admin::findOrFail($id);
         $validated = $request->validate([
             'nombre' => 'sometimes|required|string|max:255',
@@ -50,6 +77,32 @@ class AdminController extends Controller
             'rol' => 'sometimes|string|max:20',
         ]);
         $admin->update($validated);
+
+        // Sincronizar con AuthService
+        try {
+            $payload = [];
+            if (isset($validated['nombre'])) $payload['name'] = $validated['nombre'];
+            if (isset($validated['email'])) $payload['email'] = $validated['email'];
+            if (isset($validated['telefono'])) $payload['telefono'] = $validated['telefono'];
+            if (array_key_exists('direccion', $validated)) $payload['direccion'] = $validated['direccion'];
+            if (isset($validated['rol'])) $payload['rol'] = $validated['rol'];
+            if (!empty($payload)) {
+                $response = \Illuminate\Support\Facades\Http::put(env('AUTH_SERVICE_URL') . '/api/users/' . $admin->user_id, $payload);
+                if ($response->failed()) {
+                    return response()->json([
+                        'message' => 'Admin actualizado localmente, pero error al sincronizar con AuthService',
+                        'error' => $response->json('error') ?? $response->body(),
+                        'admin' => $admin
+                    ], 500);
+                }
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Admin actualizado localmente, pero error al sincronizar con AuthService',
+                'error' => $e->getMessage(),
+                'admin' => $admin
+            ], 500);
+        }
         return response()->json($admin);
     }
 
@@ -82,13 +135,31 @@ class AdminController extends Controller
     {
         $admin = Admin::findOrFail($id);
         $userId = $admin->user_id;
-        $admin->delete();
-        // Llamar a AuthService para eliminar el usuario
+        // Primero eliminar en AuthService
         try {
-            Http::delete(env('AUTH_SERVICE_URL') . '/api/users/' . $userId);
+            $response = Http::delete(env('AUTH_SERVICE_URL') . '/api/users/' . $userId);
+            if ($response->failed()) {
+                return response()->json([
+                    'message' => 'No se pudo eliminar el usuario en AuthService. El admin NO ha sido eliminado localmente.',
+                    'error' => $response->json('error') ?? $response->body(),
+                ], 500);
+            }
         } catch (\Exception $e) {
-            // Manejo de error opcional
+            return response()->json([
+                'message' => 'Error al eliminar usuario en AuthService. El admin NO ha sido eliminado localmente.',
+                'error' => $e->getMessage(),
+            ], 500);
         }
-        return response()->json(['message' => 'Administrador y usuario eliminados']);
+        // Si todo bien, eliminar el admin local
+        $admin->delete();
+        return response()->json(['message' => 'Administrador y usuario eliminados correctamente']);
+    }
+
+    // Listar admins para admin normal (sin superadmin)
+    public function listForAdmin()
+    {
+        // Excluye al superadmin
+        $admins = Admin::where('rol', '!=', 'superadmin')->get();
+        return response()->json($admins);
     }
 }

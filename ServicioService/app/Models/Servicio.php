@@ -10,12 +10,10 @@ class Servicio extends Model
         'nombre',
         'descripcion',
         'precio',
+        'precio_variable',
         'estado',
-        'tipo',
         'categoria',
-        'subdominio',
-        'estado_proyecto',
+        'subcategoria',
         'uuid',
-        'servicios_incluidos',
     ];
 }

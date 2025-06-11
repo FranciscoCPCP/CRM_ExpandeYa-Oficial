@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
 import Citas from '../pages/Citas';
@@ -9,9 +9,32 @@ import Tickets from '../pages/Tickets';
 import Chatbot from '../pages/Chatbot';
 import Reportes from '../pages/Reportes';
 import Admins from '../pages/Admins';
+import Proyectos from '../pages/Proyectos';
 
 const MainLayout: React.FC = () => {
   const [activeSection, setActiveSection] = useState('citas');
+  const [user, setUser] = useState<any>(() => {
+    const u = localStorage.getItem('user');
+    if (!u) return null;
+    try {
+      const parsed = JSON.parse(u);
+      return { ...parsed, rol: parsed.rol || parsed.role || '' };
+    } catch {
+      return null;
+    }
+  });
+
+  // Cerrar sesión
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.reload();
+  };
+
+  // Editar perfil (placeholder)
+  const handleEditProfile = () => {
+    alert('Funcionalidad de editar perfil próximamente.');
+  };
 
   // Function to render the appropriate component based on the active section
   const renderContent = () => {
@@ -24,6 +47,8 @@ const MainLayout: React.FC = () => {
         return <Admins />;
       case 'servicios':
         return <Servicios />;
+      case 'proyectos':
+        return <Proyectos />;
       case 'pagos':
         return <Pagos />;
       case 'tickets':
@@ -39,7 +64,7 @@ const MainLayout: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-      <Header />
+      <Header user={user} onLogout={handleLogout} onEditProfile={handleEditProfile} />
       <div className="flex flex-1 pt-14">
         <Sidebar activeSection={activeSection} onSectionChange={setActiveSection} />
         <main className="ml-48 flex-1 p-6 overflow-auto">

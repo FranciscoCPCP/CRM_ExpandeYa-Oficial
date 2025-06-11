@@ -13,7 +13,7 @@ Route::get('/clientes', [ClienteController::class, 'index']);
 Route::post('/clientes', [ClienteController::class, 'store']);
 Route::get('/clientes/{id}', [ClienteController::class, 'show']);
 Route::put('/clientes/{id}', [ClienteController::class, 'update']);
-Route::delete('/clientes/{id}', [ClienteController::class, 'destroy']);
+//Route::delete('/clientes/{id}', [ClienteController::class, 'destroy']);
 Route::put('/clientes/{id}/rol', [ClienteController::class, 'updateRol']);
 
 // Endpoint para sincronización desde AuthService

@@ -10,14 +10,14 @@ class Cliente extends Model
         'nombre',
         'email',
         'telefono',
-        'direccion',
+        'direccion', // ya está en fillable y Laravel maneja nullable automáticamente
         'fecha_nacimiento',
         'fecha_registro',
         'user_id',
         'tipo_cliente', // profesional, negocio, emprendimiento
-        'actividad', // a qué se dedica (profesional)
-        'nombre_negocio', // nombre de empresa/negocio
-        'idea_emprendimiento', // idea de emprendimiento
+        'actividad', // obligatorio
+        'nombre_negocio', // obligatorio
+        'idea_emprendimiento', // obligatorio
         'region',
         'distrito',
         'provincia',

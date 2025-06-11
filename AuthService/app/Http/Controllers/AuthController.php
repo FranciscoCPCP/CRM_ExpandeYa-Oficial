@@ -10,40 +10,63 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 use Tymon\JWTAuth\Exceptions\JWTException;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
     // Registro de usuario (cliente o admin)
     public function register(Request $request)
     {
+        // Validar datos básicos para users
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'nombre' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:6',
-            'telefono' => 'required|string|max:255',
-            'direccion' => 'required|string|max:255',
-            // 'tipo' ya no se recibe del formulario público
-            // campos extra para cliente se envían al microservicio correspondiente
+            // Solo datos esenciales para AuthService
+            'rol' => 'sometimes|string|in:cliente,admin,superadmin',
         ]);
+        // Determinar el rol: si viene en la petición y es válido, úsalo; si no, por defecto 'cliente'
+        $rol = $validated['rol'] ?? 'cliente';
+        // Crear usuario en tabla users
         $user = User::create([
-            'name' => $validated['name'],
+            'name' => $validated['nombre'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'estado' => 'activo',
-            'rol' => 'cliente', // Siempre cliente en registro público
+            'rol' => $rol,
         ]);
-        // Siempre se crea como cliente
+        // Enviar datos extendidos a ClienteService
         $payload = [
             'user_id' => $user->id,
             'nombre' => $user->name,
             'email' => $user->email,
-            'estado' => $user->estado,
             'telefono' => $request->input('telefono'),
             'direccion' => $request->input('direccion'),
-            'razon_social' => $request->input('razon_social'),
-            'rol' => $user->rol, // Enviar el rol al sincronizar
+            'region' => $request->input('region'),
+            'provincia' => $request->input('provincia'),
+            'distrito' => $request->input('distrito'),
+            'tipo_cliente' => $request->input('tipo_cliente'),
+            'actividad' => $request->input('actividad'),
+            'nombre_negocio' => $request->input('nombre_negocio'),
+            'idea_emprendimiento' => $request->input('idea_emprendimiento'),
+            'fecha_nacimiento' => $request->input('fecha_nacimiento'),
+            'rol' => $user->rol,
         ];
-        Http::post(env('CLIENTE_SERVICE_URL') . '/api/clientes/sync', $payload);
+        try {
+            $response = Http::post(env('CLIENTE_SERVICE_URL') . '/api/clientes/sync', $payload);
+            if (!$response->successful()) {
+                Log::error('Error al sincronizar con ClienteService: ' . $response->body());
+                $user->delete();
+                return response()->json([
+                    'error' => 'Error al sincronizar con ClienteService',
+                    'detalle' => $response->json('error') ?? $response->body(),
+                ], 500);
+            }
+        } catch (\Exception $e) {
+            Log::error('Excepción al sincronizar con ClienteService: ' . $e->getMessage());
+            $user->delete();
+            return response()->json(['error' => 'Error al sincronizar con ClienteService', 'detalle' => $e->getMessage()], 500);
+        }
         return response()->json(['user' => $user], 201);
     }
 
@@ -58,10 +81,17 @@ class AuthController extends Controller
         if ($user->estado !== 'activo') {
             return response()->json(['error' => 'Usuario inactivo o banneado'], 403);
         }
+        // Devolver el usuario con el campo 'rol' explícito
         return response()->json([
             'access_token' => $token,
             'token_type' => 'bearer',
-            'user' => $user,
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'rol' => $user->rol, // <-- aquí el campo correcto
+                'estado' => $user->estado,
+            ],
         ]);
     }
 
@@ -144,34 +174,36 @@ class AuthController extends Controller
     // Crear un nuevo admin (solo superadmin)
     public function createAdmin(Request $request)
     {
-        // Aquí deberías validar que el usuario autenticado es superadmin
+        // Validar que el usuario autenticado es superadmin (lógica omitida aquí)
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'nombre' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:6',
-            'telefono' => 'required|string|max:255',
-            'direccion' => 'required|string|max:255',
-            'area' => 'required|string|max:255',
+            // Solo datos esenciales para AuthService
         ]);
+        // Crear usuario en tabla users
         $user = User::create([
-            'name' => $validated['name'],
+            'name' => $validated['nombre'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'estado' => 'activo',
-            'rol' => 'admin', // Rol admin
+            'rol' => 'admin',
         ]);
-        // Sincronizar con AdminService
+        // Enviar datos extendidos a AdminService
         $payload = [
             'user_id' => $user->id,
             'nombre' => $user->name,
             'email' => $user->email,
-            'telefono' => $validated['telefono'],
-            'direccion' => $validated['direccion'],
-            'area' => $validated['area'],
-            'estado' => $user->estado,
-            'rol' => $user->rol, // Enviar el rol al sincronizar
+            'telefono' => $request->input('telefono'),
+            'direccion' => $request->input('direccion'),
+            'rol' => $user->rol,
         ];
-        Http::post(env('ADMIN_SERVICE_URL') . '/api/admins/sync', $payload);
+        try {
+            Http::post(env('ADMIN_SERVICE_URL') . '/api/admins/sync', $payload);
+        } catch (\Exception $e) {
+            $user->delete();
+            return response()->json(['error' => 'Error al sincronizar con AdminService'], 500);
+        }
         return response()->json(['user' => $user], 201);
     }
 
@@ -194,5 +226,27 @@ class AuthController extends Controller
         $user = User::findOrFail($id);
         $user->delete();
         return response()->json(['message' => 'Usuario eliminado']);
+    }
+
+    // Actualizar usuario desde otros microservicios (por ID)
+    public function updateUserFromService(Request $request, $id)
+    {
+        $user = User::findOrFail($id);
+        $validated = $request->validate([
+            'name' => 'sometimes|required|string|max:255',
+            'email' => 'sometimes|required|email|max:255|unique:users,email,' . $id,
+            'rol' => 'sometimes|string|max:20',
+        ]);
+        if (isset($validated['name'])) {
+            $user->name = $validated['name'];
+        }
+        if (isset($validated['email'])) {
+            $user->email = $validated['email'];
+        }
+        if (isset($validated['rol'])) {
+            $user->rol = $validated['rol'];
+        }
+        $user->save();
+        return response()->json(['message' => 'Usuario actualizado', 'user' => $user]);
     }
 }

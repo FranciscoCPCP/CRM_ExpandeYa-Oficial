@@ -18,7 +18,7 @@ class ClienteController extends Controller
     // Crear un nuevo cliente
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        $baseRules = [
             'nombre' => 'required|string|max:255',
             'email' => 'required|email|max:255|unique:clientes,email',
             'telefono' => 'required|string|max:15',
@@ -27,12 +27,30 @@ class ClienteController extends Controller
             'distrito' => 'required|string|max:100',
             'provincia' => 'required|string|max:100',
             'tipo_cliente' => 'required|in:profesional,negocio,emprendimiento',
-            'actividad' => 'nullable|string|max:255',
-            'nombre_negocio' => 'nullable|string|max:255',
-            'idea_emprendimiento' => 'nullable|string|max:255',
             'fecha_nacimiento' => 'required|date|before:-18 years',
-            'rol' => 'sometimes|string|max:20'
-        ]);
+            'rol' => 'sometimes|string|max:20',
+            'user_id' => 'nullable|integer',
+        ];
+        // Validación dinámica según tipo_cliente
+        $tipo = $request->input('tipo_cliente');
+        if ($tipo === 'profesional') {
+            $baseRules['actividad'] = 'required|string|max:255';
+            $baseRules['nombre_negocio'] = 'nullable|string|max:255';
+            $baseRules['idea_emprendimiento'] = 'nullable|string|max:255';
+        } elseif ($tipo === 'negocio') {
+            $baseRules['actividad'] = 'nullable|string|max:255';
+            $baseRules['nombre_negocio'] = 'required|string|max:255';
+            $baseRules['idea_emprendimiento'] = 'nullable|string|max:255';
+        } elseif ($tipo === 'emprendimiento') {
+            $baseRules['actividad'] = 'nullable|string|max:255';
+            $baseRules['nombre_negocio'] = 'nullable|string|max:255';
+            $baseRules['idea_emprendimiento'] = 'required|string|max:255';
+        } else {
+            $baseRules['actividad'] = 'nullable|string|max:255';
+            $baseRules['nombre_negocio'] = 'nullable|string|max:255';
+            $baseRules['idea_emprendimiento'] = 'nullable|string|max:255';
+        }
+        $validated = $request->validate($baseRules);
         // Validar ubigeo Perú
         if (!UbigeoPeru::isValid($validated['region'], $validated['provincia'], $validated['distrito'])) {
             return response()->json(['error' => 'Ubicación (región/provincia/distrito) no válida para Perú'], 422);
@@ -53,7 +71,7 @@ class ClienteController extends Controller
     public function update(Request $request, $id)
     {
         $cliente = Cliente::findOrFail($id);
-        $validated = $request->validate([
+        $baseRules = [
             'nombre' => 'sometimes|required|string|max:255',
             'email' => 'sometimes|required|email|max:255|unique:clientes,email,' . $id,
             'telefono' => 'sometimes|required|string|max:15',
@@ -62,12 +80,29 @@ class ClienteController extends Controller
             'distrito' => 'required|string|max:100',
             'provincia' => 'required|string|max:100',
             'tipo_cliente' => 'required|in:profesional,negocio,emprendimiento',
-            'actividad' => 'nullable|string|max:255',
-            'nombre_negocio' => 'nullable|string|max:255',
-            'idea_emprendimiento' => 'nullable|string|max:255',
             'fecha_nacimiento' => 'nullable|date',
-            'rol' => 'sometimes|string|max:20'
-        ]);
+            'rol' => 'sometimes|string|max:20',
+            'user_id' => 'nullable|integer',
+        ];
+        $tipo = $request->input('tipo_cliente', $cliente->tipo_cliente);
+        if ($tipo === 'profesional') {
+            $baseRules['actividad'] = 'required|string|max:255';
+            $baseRules['nombre_negocio'] = 'nullable|string|max:255';
+            $baseRules['idea_emprendimiento'] = 'nullable|string|max:255';
+        } elseif ($tipo === 'negocio') {
+            $baseRules['actividad'] = 'nullable|string|max:255';
+            $baseRules['nombre_negocio'] = 'required|string|max:255';
+            $baseRules['idea_emprendimiento'] = 'nullable|string|max:255';
+        } elseif ($tipo === 'emprendimiento') {
+            $baseRules['actividad'] = 'nullable|string|max:255';
+            $baseRules['nombre_negocio'] = 'nullable|string|max:255';
+            $baseRules['idea_emprendimiento'] = 'required|string|max:255';
+        } else {
+            $baseRules['actividad'] = 'nullable|string|max:255';
+            $baseRules['nombre_negocio'] = 'nullable|string|max:255';
+            $baseRules['idea_emprendimiento'] = 'nullable|string|max:255';
+        }
+        $validated = $request->validate($baseRules);
         if (!UbigeoPeru::isValid($validated['region'], $validated['provincia'], $validated['distrito'])) {
             return response()->json(['error' => 'Ubicación (región/provincia/distrito) no válida para Perú'], 422);
         }
@@ -159,6 +194,21 @@ class ClienteController extends Controller
     // Endpoint para exponer el ubigeo completo a frontend
     public function ubigeo()
     {
-        return response()->json(UbigeoPeru::$data);
+        // Convertir la estructura asociativa a la estructura esperada por el frontend
+        $data = [];
+        foreach (\App\Helpers\UbigeoPeru::$data as $region => $provincias) {
+            $provArr = [];
+            foreach ($provincias as $provincia => $distritos) {
+                $provArr[] = [
+                    'provincia' => $provincia,
+                    'distritos' => array_values($distritos),
+                ];
+            }
+            $data[] = [
+                'region' => $region,
+                'provincias' => $provArr,
+            ];
+        }
+        return response()->json($data);
     }
 }

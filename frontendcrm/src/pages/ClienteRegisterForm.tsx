@@ -6,6 +6,8 @@ interface Props {
   ubigeo: any[];
   ubigeoLoading?: boolean;
   ubigeoError?: string;
+  cliente?: any;
+  hidePasswordFields?: boolean; // Nuevo: para ocultar campos de contraseña
 }
 
 const initialForm = {
@@ -25,12 +27,26 @@ const initialForm = {
   password_confirmation: '',
 };
 
-const ClienteRegisterForm: React.FC<Props> = ({ onSuccess, ubigeo, ubigeoLoading, ubigeoError }) => {
+const ClienteRegisterForm: React.FC<Props> = ({ onSuccess, ubigeo, ubigeoLoading, ubigeoError, cliente, hidePasswordFields }) => {
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [touched, setTouched] = useState<{[k:string]:boolean}>({});
+
+  React.useEffect(() => {
+    if (cliente) {
+      // Si hay cliente real, usar sus datos (sin mock ni datos de prueba)
+      setForm({
+        ...initialForm,
+        ...cliente,
+        password: '',
+        password_confirmation: '',
+      });
+    } else {
+      setForm(initialForm);
+    }
+  }, [cliente]);
 
   // Selectores dependientes
   const regiones = ubigeo.map((r: any) => r.region);
@@ -60,9 +76,11 @@ const ClienteRegisterForm: React.FC<Props> = ({ onSuccess, ubigeo, ubigeoLoading
     if (form.tipo_cliente === 'profesional' && !form.actividad) return false;
     if (form.tipo_cliente === 'negocio' && !form.nombre_negocio) return false;
     if (form.tipo_cliente === 'emprendimiento' && !form.idea_emprendimiento) return false;
-    if (!form.password || !form.password_confirmation) return false;
-    if (form.password !== form.password_confirmation) return false;
-    if (form.password.length < 6) return false;
+    if (!hidePasswordFields) {
+      if (!form.password || !form.password_confirmation) return false;
+      if (form.password !== form.password_confirmation) return false;
+      if (form.password.length < 6) return false;
+    }
     return true;
   };
 
@@ -80,28 +98,61 @@ const ClienteRegisterForm: React.FC<Props> = ({ onSuccess, ubigeo, ubigeoLoading
     setLoading(true);
     setError('');
     setSuccess('');
-    if (form.password !== form.password_confirmation) {
+    if (!cliente && form.password !== form.password_confirmation) {
       setError('Las contraseñas no coinciden');
       setLoading(false);
       return;
     }
     try {
-      const res = await fetch(API_URLS.clientes, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setSuccess('Cliente registrado exitosamente.');
-        setForm(initialForm);
-        setTouched({});
-        if (onSuccess) onSuccess();
+      let res, data;
+      if (cliente) {
+        // Modo edición: PUT a ClienteService y PUT a AuthService
+        const { password, password_confirmation, ...clientePayload } = form;
+        res = await fetch(`http://localhost:8001/api/clientes/${cliente.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(clientePayload)
+        });
+        data = await res.json();
+        if (res.ok) {
+          // Sincronizar con AuthService
+          if (cliente.user_id) {
+            const userPayload: any = {};
+            if (form.nombre) userPayload.name = form.nombre;
+            if (form.email) userPayload.email = form.email;
+            if (form.telefono) userPayload.telefono = form.telefono;
+            if (form.direccion) userPayload.direccion = form.direccion;
+            await fetch(`http://localhost:8000/api/users/${cliente.user_id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(userPayload)
+            });
+          }
+          setSuccess('Cliente actualizado exitosamente.');
+          if (onSuccess) onSuccess();
+        } else {
+          setError(data.error || data.message || 'Error al actualizar cliente');
+        }
       } else {
-        setError(data.error || 'Error al registrar cliente');
+        // Cambia la URL para registrar clientes a través de AuthService
+        const payload = { ...form, rol: 'cliente' };
+        const res = await fetch('http://localhost:8000/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setSuccess('Cliente registrado exitosamente.');
+          setForm(initialForm);
+          setTouched({});
+          if (onSuccess) onSuccess();
+        } else {
+          setError(data.error || data.message || 'Error al registrar cliente');
+        }
       }
     } catch (err) {
-      setError('Error de red');
+      setError('Error de red o servidor.');
     } finally {
       setLoading(false);
     }
@@ -110,7 +161,7 @@ const ClienteRegisterForm: React.FC<Props> = ({ onSuccess, ubigeo, ubigeoLoading
   // Render condicional de campos según tipo_cliente
   return (
     <form onSubmit={handleSubmit} className="space-y-4 max-w-xl mx-auto bg-white p-6 rounded-xl shadow">
-      <h2 className="text-xl font-bold mb-2 text-primary-blue">Registrar Cliente</h2>
+      <h2 className="text-xl font-bold mb-2 text-primary-blue">{cliente ? 'Editar Cliente' : 'Registrar Cliente'}</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-gray-700">Nombre completo *</label>
@@ -136,10 +187,16 @@ const ClienteRegisterForm: React.FC<Props> = ({ onSuccess, ubigeo, ubigeoLoading
         </div>
         <div>
           <label className="block text-gray-700">Tipo de cliente *</label>
-          <select name="tipo_cliente" value={form.tipo_cliente} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" required>
-            <option value="">Selecciona...</option>
-            <option value="profesional">Profesional</option>
-            <option value="negocio">Negocio</option>
+          <select
+            name="tipo_cliente"
+            value={form.tipo_cliente}
+            onChange={handleChange}
+            className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition"
+            required
+          >
+            <option value="">Selecciona una opción</option>
+            <option value="profesional">Profesional/Freelancer</option>
+            <option value="negocio">Negocio/Empresa</option>
             <option value="emprendimiento">Emprendimiento</option>
           </select>
         </div>
@@ -191,38 +248,39 @@ const ClienteRegisterForm: React.FC<Props> = ({ onSuccess, ubigeo, ubigeoLoading
             )}
           </select>
         </div>
-        <div>
-          <label className="block text-gray-700">Contraseña *</label>
-          <input type="password" name="password" value={form.password} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" required minLength={6} />
-          <span className="text-xs text-gray-400">Mínimo 6 caracteres.</span>
-        </div>
-        <div>
-          <label className="block text-gray-700">Repetir contraseña *</label>
-          <input type="password" name="password_confirmation" value={form.password_confirmation} onChange={handleChange} className={`w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition ${touched.password_confirmation && form.password !== form.password_confirmation ? 'border-red-500' : ''}`} required minLength={6} />
-          {touched.password_confirmation && form.password !== form.password_confirmation && (
-            <span className="text-xs text-red-500">Las contraseñas no coinciden.</span>
-          )}
-        </div>
+        {!hidePasswordFields && (
+          <>
+            <div>
+              <label className="block text-gray-700">Contraseña *</label>
+              <input type="password" name="password" value={form.password} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" required minLength={6} />
+              <span className="text-xs text-gray-400">Mínimo 6 caracteres.</span>
+            </div>
+            <div>
+              <label className="block text-gray-700">Repetir contraseña *</label>
+              <input type="password" name="password_confirmation" value={form.password_confirmation} onChange={handleChange} className={`w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition ${touched.password_confirmation && form.password !== form.password_confirmation ? 'border-red-500' : ''}`} required minLength={6} />
+              {touched.password_confirmation && form.password !== form.password_confirmation && (
+                <span className="text-xs text-red-500">Las contraseñas no coinciden.</span>
+              )}
+            </div>
+          </>
+        )}
         {/* Dinámica según tipo_cliente */}
         {form.tipo_cliente === 'profesional' && (
           <div className="md:col-span-2">
-            <label className="block text-gray-700">Actividad profesional <span className="text-gray-400">(opcional)</span></label>
-            <input type="text" name="actividad" value={form.actividad} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" />
-            <span className="text-xs text-gray-400">Puedes dejar este campo vacío si no deseas especificar la actividad.</span>
+            <label className="block text-gray-700">Actividad profesional/freelancer *</label>
+            <input type="text" name="actividad" value={form.actividad} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" required />
           </div>
         )}
         {form.tipo_cliente === 'negocio' && (
           <div className="md:col-span-2">
-            <label className="block text-gray-700">Nombre del negocio <span className="text-gray-400">(opcional)</span></label>
-            <input type="text" name="nombre_negocio" value={form.nombre_negocio} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" />
-            <span className="text-xs text-gray-400">Puedes dejar este campo vacío si no deseas registrar un nombre de negocio.</span>
+            <label className="block text-gray-700">Nombre del negocio/empresa *</label>
+            <input type="text" name="nombre_negocio" value={form.nombre_negocio} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" required />
           </div>
         )}
         {form.tipo_cliente === 'emprendimiento' && (
           <div className="md:col-span-2">
-            <label className="block text-gray-700">Idea de emprendimiento <span className="text-gray-400">(opcional)</span></label>
-            <input type="text" name="idea_emprendimiento" value={form.idea_emprendimiento} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" />
-            <span className="text-xs text-gray-400">Puedes dejar este campo vacío si no deseas registrar una idea.</span>
+            <label className="block text-gray-700">Idea de emprendimiento *</label>
+            <input type="text" name="idea_emprendimiento" value={form.idea_emprendimiento} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" required />
           </div>
         )}
       </div>
@@ -232,9 +290,14 @@ const ClienteRegisterForm: React.FC<Props> = ({ onSuccess, ubigeo, ubigeoLoading
       {!isValid() && touched && Object.keys(touched).length > 0 && !loading && !success && (
         <div className="text-red-500 text-xs text-center">Debes completar todos los campos marcados con *.</div>
       )}
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {cliente && (
+          <button type="button" className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition-colors shadow" onClick={() => { if (onSuccess) onSuccess(); }}>
+            Cancelar
+          </button>
+        )}
         <button type="submit" className="bg-primary-orange text-white px-6 py-2 rounded-lg hover:bg-primary-orange/90 transition-colors shadow" disabled={loading || !isValid()}>
-          {loading ? 'Registrando...' : 'Registrar'}
+          {loading ? (cliente ? 'Guardando...' : 'Registrando...') : (cliente ? 'Guardar cambios' : 'Registrar')}
         </button>
       </div>
     </form>

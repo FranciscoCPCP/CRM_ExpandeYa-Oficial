@@ -1,0 +1,262 @@
+import React, { useState } from 'react';
+
+interface Props {
+  onSuccess?: () => void;
+  ubigeo: any[];
+  ubigeoLoading?: boolean;
+  ubigeoError?: string;
+  cliente?: any; // Permite pasar el cliente real para edición
+}
+
+const initialForm = {
+  nombre: '',
+  email: '',
+  telefono: '',
+  direccion: '',
+  fecha_nacimiento: '',
+  tipo_cliente: '',
+  actividad: '',
+  nombre_negocio: '',
+  idea_emprendimiento: '',
+  region: '',
+  provincia: '',
+  distrito: '',
+  password: '',
+  password_confirmation: '',
+};
+
+const ClienteRegisterForm: React.FC<Props> = ({ onSuccess, ubigeo, ubigeoLoading, ubigeoError, cliente }) => {
+  const [form, setForm] = useState(initialForm);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [touched, setTouched] = useState<{[k:string]:boolean}>({});
+
+  React.useEffect(() => {
+    if (cliente) {
+      setForm({
+        ...initialForm,
+        ...cliente,
+        password: '',
+        password_confirmation: '',
+      });
+    } else {
+      setForm(initialForm);
+    }
+  }, [cliente]);
+
+  // Selectores dependientes
+  const regiones = ubigeo.map((r: any) => r.region);
+  const provincias = form.region
+    ? (ubigeo.find((r: any) => r.region === form.region)?.provincias || [])
+    : [];
+  const distritos = form.region && form.provincia
+    ? (provincias.find((p: any) => p.provincia === form.provincia)?.distritos || [])
+    : [];
+
+  // Edad
+  const getEdad = (fecha: string) => {
+    if (!fecha) return 0;
+    const hoy = new Date();
+    const nac = new Date(fecha);
+    let edad = hoy.getFullYear() - nac.getFullYear();
+    const m = hoy.getMonth() - nac.getMonth();
+    if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) edad--;
+    return edad;
+  };
+  const edad = getEdad(form.fecha_nacimiento);
+
+  // Validaciones visuales
+  const isValid = () => {
+    if (!form.nombre || !form.email || !form.telefono || !form.fecha_nacimiento || !form.tipo_cliente || !form.region || !form.provincia || !form.distrito) return false;
+    if (edad < 18) return false;
+    if (form.tipo_cliente === 'profesional' && !form.actividad) return false;
+    if (form.tipo_cliente === 'negocio' && !form.nombre_negocio) return false;
+    if (form.tipo_cliente === 'emprendimiento' && !form.idea_emprendimiento) return false;
+    if (!form.password || !form.password_confirmation) return false;
+    if (form.password !== form.password_confirmation) return false;
+    if (form.password.length < 6) return false;
+    return true;
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setForm(f => ({ ...f, [name]: value }));
+    setTouched(t => ({ ...t, [name]: true }));
+    // Limpiar selects dependientes
+    if (name === 'region') setForm(f => ({ ...f, provincia: '', distrito: '' }));
+    if (name === 'provincia') setForm(f => ({ ...f, distrito: '' }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    if (form.password !== form.password_confirmation) {
+      setError('Las contraseñas no coinciden');
+      setLoading(false);
+      return;
+    }
+    try {
+      // Enviar el payload correcto para registro de cliente
+      const payload = {
+        ...form,
+        rol: 'cliente', // Asegura que el backend reciba el rol
+      };
+      const res = await fetch('http://localhost:8000/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSuccess('Cliente registrado exitosamente.');
+        setForm(initialForm);
+        setTouched({});
+        if (onSuccess) onSuccess();
+      } else {
+        setError(data.error || 'Error al registrar cliente');
+      }
+    } catch (err) {
+      setError('Error de red');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Render condicional de campos según tipo_cliente
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 max-w-xl mx-auto bg-white p-6 rounded-xl shadow">
+      <h2 className="text-xl font-bold mb-2 text-primary-blue">Registrar Cliente</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-gray-700">Nombre completo *</label>
+          <input type="text" name="nombre" value={form.nombre} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" required />
+        </div>
+        <div>
+          <label className="block text-gray-700">Email *</label>
+          <input type="email" name="email" value={form.email} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" required />
+        </div>
+        <div>
+          <label className="block text-gray-700">Teléfono *</label>
+          <input type="text" name="telefono" value={form.telefono} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" required />
+        </div>
+        <div>
+          <label className="block text-gray-700">Dirección <span className="text-gray-400">(opcional)</span></label>
+          <input type="text" name="direccion" value={form.direccion} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" />
+          <span className="text-xs text-gray-400">Puedes dejar este campo vacío si no deseas registrar una dirección.</span>
+        </div>
+        <div>
+          <label className="block text-gray-700">Fecha de nacimiento *</label>
+          <input type="date" name="fecha_nacimiento" value={form.fecha_nacimiento} onChange={handleChange} className={`w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition ${touched.fecha_nacimiento && edad < 18 ? 'border-red-500' : ''}`} required />
+          {touched.fecha_nacimiento && edad < 18 && <span className="text-xs text-red-500">Debes ser mayor de 18 años.</span>}
+        </div>
+        <div>
+          <label className="block text-gray-700">Tipo de cliente *</label>
+          <select name="tipo_cliente" value={form.tipo_cliente} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" required>
+            <option value="">Selecciona...</option>
+            <option value="profesional">Profesional</option>
+            <option value="negocio">Negocio</option>
+            <option value="emprendimiento">Emprendimiento</option>
+          </select>
+        </div>
+        {/* Selectores dependientes */}
+        <div>
+          <label className="block text-gray-700">Región *</label>
+          <select name="region" value={form.region} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" required>
+            <option value="">Selecciona...</option>
+            {ubigeoLoading ? (
+              <option value="" disabled>Cargando regiones...</option>
+            ) : ubigeoError ? (
+              <option value="" disabled>{ubigeoError}</option>
+            ) : (
+              regiones && regiones.map((r: any) => <option key={r} value={r}>{r}</option>)
+            )}
+          </select>
+        </div>
+        <div>
+          <label className="block text-gray-700">Provincia *</label>
+          <select name="provincia" value={form.provincia} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" required disabled={!form.region}>
+            <option value="">Selecciona...</option>
+            {ubigeoLoading ? (
+              <option value="" disabled>Cargando provincias...</option>
+            ) : ubigeoError ? (
+              <option value="" disabled>{ubigeoError}</option>
+            ) : (
+              provincias && Array.isArray(provincias) && provincias.map((p: any) => (
+                typeof p === 'string'
+                  ? <option key={p} value={p}>{p}</option>
+                  : <option key={p.provincia} value={p.provincia}>{p.provincia}</option>
+              ))
+            )}
+          </select>
+        </div>
+        <div>
+          <label className="block text-gray-700">Distrito *</label>
+          <select name="distrito" value={form.distrito} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" required disabled={!form.provincia}>
+            <option value="">Selecciona...</option>
+            {ubigeoLoading ? (
+              <option value="" disabled>Cargando distritos...</option>
+            ) : ubigeoError ? (
+              <option value="" disabled>{ubigeoError}</option>
+            ) : (
+              distritos && Array.isArray(distritos) && distritos.map((d: any) => (
+                typeof d === 'string'
+                  ? <option key={d} value={d}>{d}</option>
+                  : <option key={d.distrito} value={d.distrito}>{d.distrito}</option>
+              ))
+            )}
+          </select>
+        </div>
+        <div>
+          <label className="block text-gray-700">Contraseña *</label>
+          <input type="password" name="password" value={form.password} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" required minLength={6} />
+          <span className="text-xs text-gray-400">Mínimo 6 caracteres.</span>
+        </div>
+        <div>
+          <label className="block text-gray-700">Repetir contraseña *</label>
+          <input type="password" name="password_confirmation" value={form.password_confirmation} onChange={handleChange} className={`w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition ${touched.password_confirmation && form.password !== form.password_confirmation ? 'border-red-500' : ''}`} required minLength={6} />
+          {touched.password_confirmation && form.password !== form.password_confirmation && (
+            <span className="text-xs text-red-500">Las contraseñas no coinciden.</span>
+          )}
+        </div>
+        {/* Dinámica según tipo_cliente */}
+        {form.tipo_cliente === 'profesional' && (
+          <div className="md:col-span-2">
+            <label className="block text-gray-700">Actividad profesional <span className="text-gray-400">(opcional)</span></label>
+            <input type="text" name="actividad" value={form.actividad} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" />
+            <span className="text-xs text-gray-400">Puedes dejar este campo vacío si no deseas especificar la actividad.</span>
+          </div>
+        )}
+        {form.tipo_cliente === 'negocio' && (
+          <div className="md:col-span-2">
+            <label className="block text-gray-700">Nombre del negocio <span className="text-gray-400">(opcional)</span></label>
+            <input type="text" name="nombre_negocio" value={form.nombre_negocio} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" />
+            <span className="text-xs text-gray-400">Puedes dejar este campo vacío si no deseas registrar un nombre de negocio.</span>
+          </div>
+        )}
+        {form.tipo_cliente === 'emprendimiento' && (
+          <div className="md:col-span-2">
+            <label className="block text-gray-700">Idea de emprendimiento <span className="text-gray-400">(opcional)</span></label>
+            <input type="text" name="idea_emprendimiento" value={form.idea_emprendimiento} onChange={handleChange} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-primary-orange focus:border-primary-orange transition" />
+            <span className="text-xs text-gray-400">Puedes dejar este campo vacío si no deseas registrar una idea.</span>
+          </div>
+        )}
+      </div>
+      {/* Mensajes de error y éxito */}
+      {error && <div className="text-red-600 text-sm text-center">{error}</div>}
+      {success && <div className="text-green-600 text-sm text-center">{success}</div>}
+      {!isValid() && touched && Object.keys(touched).length > 0 && !loading && !success && (
+        <div className="text-red-500 text-xs text-center">Debes completar todos los campos marcados con *.</div>
+      )}
+      <div className="flex justify-end">
+        <button type="submit" className="bg-primary-orange text-white px-6 py-2 rounded-lg hover:bg-primary-orange/90 transition-colors shadow" disabled={loading || !isValid()}>
+          {loading ? 'Registrando...' : 'Registrar'}
+        </button>
+      </div>
+    </form>
+  );
+};
+
+export default ClienteRegisterForm;

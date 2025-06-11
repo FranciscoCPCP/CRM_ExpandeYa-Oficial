@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import ClienteRegisterForm from './ClienteRegisterForm';
+import ClienteRegisterForm from './ClientesRegisterForm';
 import { API_URLS } from '../utils/api';
 
 const RegisterPage: React.FC<{ onRegisterSuccess: () => void; onGoToLogin: () => void }> = ({ onRegisterSuccess, onGoToLogin }) => {

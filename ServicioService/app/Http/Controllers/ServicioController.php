@@ -5,97 +5,160 @@ namespace App\Http\Controllers;
 use App\Models\Servicio;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class ServicioController extends Controller
 {
-    // Listar todos los servicios y paquetes
+    // Listar todos los servicios
     public function index()
     {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+        } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
+            return response()->json(['error' => 'Token expirado'], 401);
+        } catch (\Tymon\JWTAuth\Exceptions\TokenInvalidException $e) {
+            return response()->json(['error' => 'Token inválido'], 401);
+        } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
+            return response()->json(['error' => 'Token no proporcionado'], 401);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error de autenticación'], 401);
+        }
         return response()->json(Servicio::all());
     }
 
-    // Crear un nuevo servicio o paquete
+    // Crear un nuevo servicio
     public function store(Request $request)
     {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+        } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
+            return response()->json(['error' => 'Token expirado'], 401);
+        } catch (\Tymon\JWTAuth\Exceptions\TokenInvalidException $e) {
+            return response()->json(['error' => 'Token inválido'], 401);
+        } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
+            return response()->json(['error' => 'Token no proporcionado'], 401);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error de autenticación'], 401);
+        }
+        if (!in_array($user->rol ?? $user->tipo ?? null, ['admin', 'superadmin'])) {
+            return response()->json(['error' => 'No autorizado'], 403);
+        }
         $validated = $request->validate([
-            'nombre' => 'required|string|max:255',
-            'descripcion' => 'nullable|string',
+            'nombre' => 'required|string|max:255|unique:servicios,nombre',
+            'descripcion' => 'required|string',
             'precio' => 'nullable|numeric',
-            'estado' => 'required|in:activo,inactivo',
-            'tipo' => 'required|in:servicio,paquete',
-            'categoria' => 'nullable|string|max:255',
-            'subdominio' => 'nullable|string|max:255',
-            'estado_proyecto' => 'required|in:en proceso,revisión,entregado,pausado,bloqueado',
-            'uuid' => 'required|uuid|unique:servicios,uuid',
-            'servicios_incluidos' => 'nullable|json',
+            'precio_variable' => 'required|boolean',
+            'estado' => 'required|in:activo,suspendido',
+            'categoria' => 'required|string',
+            'subcategoria' => 'required|string',
         ]);
+        if ($validated['precio_variable']) {
+            $validated['precio'] = null;
+        } else {
+            if (!isset($validated['precio'])) {
+                return response()->json(['error' => 'El campo precio es obligatorio si precio_variable es false'], 422);
+            }
+        }
+        $validated['uuid'] = Str::uuid();
         $servicio = Servicio::create($validated);
-        return response()->json($servicio, 201);
+        return response()->json(['servicio' => $servicio, 'message' => 'Servicio creado correctamente'], 201);
     }
 
-    // Mostrar un servicio o paquete específico
+    // Mostrar un servicio específico
     public function show($id)
     {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+        } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
+            return response()->json(['error' => 'Token expirado'], 401);
+        } catch (\Tymon\JWTAuth\Exceptions\TokenInvalidException $e) {
+            return response()->json(['error' => 'Token inválido'], 401);
+        } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
+            return response()->json(['error' => 'Token no proporcionado'], 401);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error de autenticación'], 401);
+        }
         $servicio = Servicio::findOrFail($id);
         return response()->json($servicio);
     }
 
-    // Actualizar un servicio o paquete
+    // Actualizar un servicio
     public function update(Request $request, $id)
     {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+        } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
+            return response()->json(['error' => 'Token expirado'], 401);
+        } catch (\Tymon\JWTAuth\Exceptions\TokenInvalidException $e) {
+            return response()->json(['error' => 'Token inválido'], 401);
+        } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
+            return response()->json(['error' => 'Token no proporcionado'], 401);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error de autenticación'], 401);
+        }
+        if (!in_array($user->rol ?? $user->tipo ?? null, ['admin', 'superadmin'])) {
+            return response()->json(['error' => 'No autorizado'], 403);
+        }
         $servicio = Servicio::findOrFail($id);
         $validated = $request->validate([
-            'nombre' => 'sometimes|required|string|max:255',
-            'descripcion' => 'nullable|string',
+            'nombre' => 'sometimes|required|string|max:255|unique:servicios,nombre,' . $id,
+            'descripcion' => 'sometimes|required|string',
             'precio' => 'nullable|numeric',
-            'estado' => 'sometimes|required|in:activo,inactivo',
-            'tipo' => 'sometimes|required|in:servicio,paquete',
-            'categoria' => 'nullable|string|max:255',
-            'subdominio' => 'nullable|string|max:255',
-            'estado_proyecto' => 'sometimes|required|in:en proceso,revisión,entregado,pausado,bloqueado',
-            'uuid' => 'sometimes|required|uuid|unique:servicios,uuid,' . $id,
-            'servicios_incluidos' => 'nullable|json',
+            'precio_variable' => 'sometimes|required|boolean',
+            'estado' => 'sometimes|required|in:activo,suspendido',
+            'categoria' => 'sometimes|required|string',
+            'subcategoria' => 'sometimes|required|string',
         ]);
+        if (isset($validated['precio_variable'])) {
+            if ($validated['precio_variable']) {
+                $validated['precio'] = null;
+            } else {
+                if (!isset($validated['precio']) && $servicio->precio === null) {
+                    return response()->json(['error' => 'El campo precio es obligatorio si precio_variable es false'], 422);
+                }
+            }
+        }
         $servicio->update($validated);
-        return response()->json($servicio);
+        return response()->json(['servicio' => $servicio, 'message' => 'Servicio actualizado correctamente']);
     }
 
-    // Eliminar un servicio o paquete
+    // Eliminar un servicio
     public function destroy($id)
     {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+        } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
+            return response()->json(['error' => 'Token expirado'], 401);
+        } catch (\Tymon\JWTAuth\Exceptions\TokenInvalidException $e) {
+            return response()->json(['error' => 'Token inválido'], 401);
+        } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
+            return response()->json(['error' => 'Token no proporcionado'], 401);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error de autenticación'], 401);
+        }
+        if (!in_array($user->rol ?? $user->tipo ?? null, ['admin', 'superadmin'])) {
+            return response()->json(['error' => 'No autorizado'], 403);
+        }
         $servicio = Servicio::findOrFail($id);
         $servicio->delete();
-        return response()->json(['message' => 'Servicio eliminado']);
+        return response()->json(['message' => 'Servicio eliminado correctamente']);
     }
 
-    // Listar solo paquetes
-    public function paquetes()
+    // Endpoint para sincronización con otros microservicios
+    public function sync(Request $request)
     {
-        $paquetes = Servicio::where('tipo', 'paquete')->get();
-        return response()->json($paquetes);
-    }
-
-    // Crear un paquete personalizado (carrito de servicios)
-    public function crearPaquetePersonalizado(Request $request)
-    {
-        $validated = $request->validate([
-            'nombre' => 'required|string|max:255',
-            'descripcion' => 'nullable|string',
-            'precio' => 'required|numeric',
-            'servicios_incluidos' => 'required|array|min:1', // IDs de servicios
-        ]);
-        $paquete = Servicio::create([
-            'nombre' => $validated['nombre'],
-            'descripcion' => $validated['descripcion'] ?? null,
-            'precio' => $validated['precio'],
-            'estado' => 'activo',
-            'tipo' => 'paquete',
-            'categoria' => 'personalizado',
-            'subdominio' => null,
-            'estado_proyecto' => 'en proceso',
-            'uuid' => Str::uuid(),
-            'servicios_incluidos' => json_encode($validated['servicios_incluidos']),
-        ]);
-        return response()->json($paquete, 201);
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+        } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
+            return response()->json(['error' => 'Token expirado'], 401);
+        } catch (\Tymon\JWTAuth\Exceptions\TokenInvalidException $e) {
+            return response()->json(['error' => 'Token inválido'], 401);
+        } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
+            return response()->json(['error' => 'Token no proporcionado'], 401);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error de autenticación'], 401);
+        }
+        // Aquí se puede implementar la lógica de sincronización según necesidades futuras
+        return response()->json(['message' => 'Sync endpoint listo para integración'], 200);
     }
 }
